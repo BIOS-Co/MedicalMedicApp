@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "mhc_mobile_app",
-    "slug": "mhc_mobile_app",
-    "version": "1.0.0",
+    "name": "MHC Medicos",
+    "slug": "medical-app",
+    "version": "2.0.1",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/logo-medical-color.png",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash.png",
@@ -15,16 +15,32 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "ios.medicApp"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/Icon_app.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCw4GK9llNdu3RvbmsW25xp1P3b8WghL6w"
+        }
+      },
+      "package": "app.medical"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "notification": {
+      "color": "#ffffff"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "c6dd01dc-df22-49b4-af85-81fcce984550"
+      }
+    },
+    "owner": "juan_pablo_loaiza"
   }
 }
