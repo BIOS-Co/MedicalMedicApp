@@ -15,7 +15,7 @@ const initLogin=async(User)=>{
         password:User.password,
 
     }
-
+//console.log(path, 'path')
     return await axios.post(path,body)
 
 }

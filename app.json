@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "MHC Medicos",
-    "slug": "medical-app",
+    "slug": "mhc",
     "version": "2.0.1",
     "orientation": "portrait",
     "icon": "./assets/logo-medical-color.png",
@@ -38,9 +38,10 @@
     },
     "extra": {
       "eas": {
-        "projectId": "c6dd01dc-df22-49b4-af85-81fcce984550"
+        "projectId": "0c3f5377-4be9-49bd-a796-c64961e49041"
       }
     },
-    "owner": "juan_pablo_loaiza"
+    "owner": "danielcuartasarango"
   }
 }
+ 

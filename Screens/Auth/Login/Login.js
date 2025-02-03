@@ -160,7 +160,9 @@ export default function Login(props) {
       setPreloader(true);
       let result = undefined;
       result = await initLogin(user).catch((error) => {
-        console.log("ERROR: ", error);
+        //console.log("ERROR: ", error);
+       // console.log("Detalles:", error.toJSON ? error.toJSON() : error);
+        
         handleError();
         setPreloader(false);
       });

@@ -147,7 +147,7 @@ export default function Lobby(props) {
         getData(); // carga de datos
       }
     }
-  }, [userData, activities]);
+  }, [userData, activities, currentDate, currentPosition]);
 
   const requestLocationPermission = async () => {
     /*
@@ -171,14 +171,13 @@ export default function Lobby(props) {
     función para obtener la cita activa del médico
     */
     setPreloader(true);
-    let result = undefined;
-    result = await getActiveDates(token).catch((error) => {
+    let  result = await getActiveDates(token).catch((error) => {
       console.log(error);
       handleError();
       setPreloader(false);
     });
-    if (result !== undefined) {
-      console.log(result);
+    if (result) {
+      console.log(result  , 'result');
       if (result.data.name) {
         let DateActive = result.data;
         setCurrentDate(DateActive); // guardamos la cita activa para mostrar la ubicación del usuario
@@ -401,18 +400,22 @@ export default function Lobby(props) {
       const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${ADD}&key=AIzaSyCw4GK9llNdu3RvbmsW25xp1P3b8WghL6w`;
       try {
         const response = await axios.get(url);
-        const { results } = response.data;
-
-        if (results.length > 0) {
-          const firstResult = results[0];
-          // seteamos la latitud y longitud en caso de haber sido posible encontrarla
-          const { lat, lng } = firstResult.geometry.location;
-          setDestinationCoordinates({ lat: lat, lng: lng });
-        } else {
-          console.log(
-            "No se encontraron resultados para la dirección proporcionada."
-          );
+        if (response) {
+          console.log(response, 'response de getCoordinates');
+          const  {results}  = response.data;
+          if (results.length > 0) {
+            const firstResult = results[0];
+            // seteamos la latitud y longitud en caso de haber sido posible encontrarla
+            const { lat, lng } = firstResult.geometry.location;
+            setDestinationCoordinates({ lat: lat, lng: lng });
+          } else {
+            console.log(
+              "No se encontraron resultados para la dirección proporcionada."
+            );
+          }
         }
+
+
       } catch (error) {
         console.error(error);
       }
@@ -422,23 +425,28 @@ export default function Lobby(props) {
   };
 
   React.useEffect(() => {
-    if (currentDate !== null) {
-      if (currentDate.name !== undefined) {
-        // en caso de que tengamos una cita activa buscamos las coordenadas de la dirección de destino
-        getCoordinates(currentDate?.address, currentDate?.city, "Colombia");
+    console.log('esperar fecha');
+    const esperarCurrentDate = async () => {
+      while (currentDate === null || currentDate.name === undefined) {
+        await new Promise(resolve => setTimeout(resolve, 50000)); // Espera 500 ms antes de verificar de nuevo
       }
-    }
+      getCoordinates(currentDate?.address, currentDate?.city, "Colombia");
+    };
+
+    esperarCurrentDate();
   }, [currentDate]);
 
+
   React.useEffect(() => {
-    /*
-    si tenemos la dirección de destino y la posición actual del médico
-    calculamos la ruta mas cercana para trazar por google maps
-    */
-    if (currentPosition !== null && destinationCoordinates !== null) {
-      console.log("Llega hasta este punto", currentDate);
-      obtenerRuta(currentPosition, destinationCoordinates); // obtenemos la ruta entre los 2 puntos
-    }
+    console.log('esperar datos2');
+    const esperarDatos = async () => {
+      while (currentPosition === null || destinationCoordinates === null) {
+        await new Promise(resolve => setTimeout(resolve, 50000)); // Espera 500 ms antes de verificar de nuevo
+      }
+      obtenerRuta(currentPosition, destinationCoordinates);
+    };
+
+    esperarDatos();
   }, [currentPosition, destinationCoordinates]);
 
   /* USE STATE */
@@ -463,53 +471,59 @@ export default function Lobby(props) {
     */
     const apiKey = "AIzaSyCw4GK9llNdu3RvbmsW25xp1P3b8WghL6w";
     const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${coordinatesStart?.latitude},${coordinatesStart?.longitude}&destination=${coordinatesEnd?.lat},${coordinatesEnd?.lng}&key=${apiKey}&language=es`;
-
+    console.log('entra a la funcion');
     try {
       const response = await axios.get(url);
-      const data = response.data;
-      // Procesa los datos de respuesta para obtener los puntos de latitud y longitud de la ruta
-      const ruta = data.routes[0].overview_polyline.points;
-      const duration = data.routes[0].legs[0].duration.text; // Duración estimada de la ruta
-      let timeEstimated = data.routes[0].legs[0].duration.value;
-      setTime(duration);
-      if (currentDate?.status === "EN CAMINO" && dateAcceptedMessage) {
-        // enviamos al usuario el tiempo estimado de llegada
-        Whatsapp_message_time(
-          currentDate?.cellphone_number,
-          timeEstimated,
-          currentDate.datetime_start
-        )
-          .then((data) => {
-            console.log(data);
-            setDateAcceptedMessage(false);
-          })
-          .catch((error) => {
-            console.log(error);
+      console.log(response, 'response');
+      if (response) {
+        console.log('entra al response de obtener ruta');
+        const data = response.data;
+        // Procesa los datos de respuesta para obtener los puntos de latitud y longitud de la ruta
+        const ruta = data?.routes[0].overview_polyline.points;
+        const duration = data?.routes[0].legs[0].duration.text; // Duración estimada de la ruta
+        let timeEstimated = data?.routes[0].legs[0].duration.value;
+        setTime(duration);
+        if (currentDate?.status === "EN CAMINO" && dateAcceptedMessage) {
+          // enviamos al usuario el tiempo estimado de llegada
+          console.log('mensaje de whatsapp');
+          Whatsapp_message_time(
+            currentDate?.cellphone_number,
+            timeEstimated,
+            currentDate?.datetime_start
+          )
+            .then((data) => {
+              console.log(data);
+              setDateAcceptedMessage(false);
+            })
+            .catch((error) => {
+              console.log(error);
+            });
+        }
+        // Convierte la codificación de puntos a coordenadas
+        const coordenadasRuta = decodePolyline(ruta);
+        setPoliLine(coordenadasRuta);
+        // obtenemos las indicaciones que ofrece la api de google
+        const pasos = data.routes[0].legs[0].steps;
+        // Reproduce las instrucciones paso a paso
+        if (currentDate?.datetime_arrival === null) {
+          // en caso de que el médico no haya llegado a la casa reproduce las instrucciones
+          let instruccion = pasos[0].html_instructions.replace(/<[^>]+>/g, " "); // Elimina las etiquetas HTML de la instrucción
+          setIndications(instruccion);
+          instruccion = instruccion.replace("Cra.", "Carrera");
+          instruccion = instruccion.replace("Cl.", "Calle");
+          instruccion = instruccion.replace("/", " ");
+          instruccion = instruccion.replace("Av.", "Avenida");
+          Speech.speak(instruccion, {
+            language: "es-ES", // Establece el idioma de las instrucciones de voz
+            pitch: 1, // Establece el tono de voz
+            rate: 1, // Establece la velocidad de reproducción
           });
-      }
-      // Convierte la codificación de puntos a coordenadas
-      const coordenadasRuta = decodePolyline(ruta);
-      setPoliLine(coordenadasRuta);
-      // obtenemos las indicaciones que ofrece la api de google
-      const pasos = data.routes[0].legs[0].steps;
-      // Reproduce las instrucciones paso a paso
-      if (currentDate?.datetime_arrival === null) {
-        // en caso de que el médico no haya llegado a la casa reproduce las instrucciones
-        let instruccion = pasos[0].html_instructions.replace(/<[^>]+>/g, " "); // Elimina las etiquetas HTML de la instrucción
-        setIndications(instruccion);
-        instruccion = instruccion.replace("Cra.", "Carrera");
-        instruccion = instruccion.replace("Cl.", "Calle");
-        instruccion = instruccion.replace("/", " ");
-        instruccion = instruccion.replace("Av.", "Avenida");
-        Speech.speak(instruccion, {
-          language: "es-ES", // Establece el idioma de las instrucciones de voz
-          pitch: 1, // Establece el tono de voz
-          rate: 1, // Establece la velocidad de reproducción
-        });
+        }
+
+        const streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=400x400&location=${coordinatesEnd.lat},${coordinatesEnd.lng}&fov=90&heading=235&pitch=10&key=${apiKey}`;
+        setViewUrl(streetViewUrl);
       }
 
-      const streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?size=400x400&location=${coordinatesEnd.lat},${coordinatesEnd.lng}&fov=90&heading=235&pitch=10&key=${apiKey}`;
-      setViewUrl(streetViewUrl);
     } catch (error) {
       console.error("Error al obtener la ruta:", error);
     }
@@ -981,31 +995,31 @@ export default function Lobby(props) {
                   </View>
                   {
                     currentDate?.activity !== 2 &&
-                      <View
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        marginBottom: 5,
+                        width: "90%",
+                        maxWidth: 450,
+                        minHeight: 50,
+                        backgroundColor: "#FFFFFF",
+                        borderRadius: 20,
+                        padding: 10,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text
                         style={{
-                          flexDirection: "row",
-                          marginBottom: 5,
-                          width: "90%",
-                          maxWidth: 450,
-                          minHeight: 50,
-                          backgroundColor: "#FFFFFF",
-                          borderRadius: 20,
-                          padding: 10,
-                          alignItems: "center",
-                          justifyContent: "center",
+                          ...Globalstyles.text,
+                          ...Globalstyles.PurpleWhite2,
+                          textAlign: "center",
+                          ...Globalstyles.Semibold,
                         }}
                       >
-                        <Text
-                          style={{
-                            ...Globalstyles.text,
-                            ...Globalstyles.PurpleWhite2,
-                            textAlign: "center",
-                            ...Globalstyles.Semibold,
-                          }}
-                        >
-                          {currentDate?.address}
-                        </Text>
-                      </View>
+                        {currentDate?.address}
+                      </Text>
+                    </View>
                   }
 
                   {destinationCoordinates !== null ? (
@@ -1042,52 +1056,52 @@ export default function Lobby(props) {
                       )}
                       {
                         currentDate?.activity !== 2 &&
-                          <MapView
-                            style={{
-                              flexDirection: "row",
-                              marginBottom: 5,
-                              width: "90%",
-                              maxWidth: 450,
-                              minHeight: 500,
-                              backgroundColor: "#FFFFFF",
-                              borderRadius: 20,
-                              padding: 10,
-                              alignItems: "flex-end",
-                              justifyContent: "flex-end",
-                            }}
-                            initialRegion={{
-                              latitude: currentPosition?.latitude, // Latitud inicial del mapa
-                              longitude: currentPosition?.longitude, // Longitud inicial del mapa
-                              latitudeDelta: 0.05,
-                              longitudeDelta: 0.05,
-                            }}
-                          >
-                            <Marker
-                              coordinate={{
-                                latitude: currentPosition?.latitude,
-                                longitude: currentPosition?.longitude,
-                              }} // Coordenadas de tu posición actual
-                              title="Mi posición actual"
-                            />
+                        <MapView
+                          style={{
+                            flexDirection: "row",
+                            marginBottom: 5,
+                            width: "90%",
+                            maxWidth: 450,
+                            minHeight: 500,
+                            backgroundColor: "#FFFFFF",
+                            borderRadius: 20,
+                            padding: 10,
+                            alignItems: "flex-end",
+                            justifyContent: "flex-end",
+                          }}
+                          initialRegion={{
+                            latitude: currentPosition?.latitude, // Latitud inicial del mapa
+                            longitude: currentPosition?.longitude, // Longitud inicial del mapa
+                            latitudeDelta: 0.05,
+                            longitudeDelta: 0.05,
+                          }}
+                        >
+                          <Marker
+                            coordinate={{
+                              latitude: currentPosition?.latitude,
+                              longitude: currentPosition?.longitude,
+                            }} // Coordenadas de tu posición actual
+                            title="Mi posición actual"
+                          />
 
-                            <Marker
-                              coordinate={{
-                                latitude: destinationCoordinates?.lat,
-                                longitude: destinationCoordinates?.lng,
-                              }} // Coordenadas de la segunda posición
-                              title="Destino"
+                          <Marker
+                            coordinate={{
+                              latitude: destinationCoordinates?.lat,
+                              longitude: destinationCoordinates?.lng,
+                            }} // Coordenadas de la segunda posición
+                            title="Destino"
+                          />
+                          {ViewUrl !== null ? <></> : <></>}
+                          {poliLine !== null ? (
+                            <Polyline
+                              coordinates={poliLine}
+                              strokeWidth={2}
+                              strokeColor="#FF0000"
                             />
-                            {ViewUrl !== null ? <></> : <></>}
-                            {poliLine !== null ? (
-                              <Polyline
-                                coordinates={poliLine}
-                                strokeWidth={2}
-                                strokeColor="#FF0000"
-                              />
-                            ) : (
-                              <></>
-                            )}
-                          </MapView>
+                          ) : (
+                            <></>
+                          )}
+                        </MapView>
                       }
                     </>
                   ) : (
